@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info } from 'lucide-react';
+import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info, CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Appointment {
@@ -8,6 +8,7 @@ interface Appointment {
   phone: string;
   date: string;
   test: string;
+  paymentMode?: string;
   status: string;
   createdAt: any;
 }
@@ -85,6 +86,15 @@ export default function AdminPage() {
   const handleLogout = () => {
     localStorage.removeItem('focus_admin_session');
     setAdminUser(null);
+  };
+
+  const handleStatusChange = (id: string, newStatus: string) => {
+    const appts = JSON.parse(localStorage.getItem('focus_appointments') || '[]');
+    const updatedAppts = appts.map((appt: any) => 
+      appt.id === id ? { ...appt, status: newStatus } : appt
+    );
+    localStorage.setItem('focus_appointments', JSON.stringify(updatedAppts));
+    setAppointments(updatedAppts);
   };
 
   if (loading) {
@@ -223,6 +233,7 @@ export default function AdminPage() {
                   <th className="px-6 py-4 font-bold flex items-center gap-2"><UserIcon size={14} /> Patient Name</th>
                   <th className="px-6 py-4 font-bold"><Phone size={14} className="inline mr-2" />Phone</th>
                   <th className="px-6 py-4 font-bold"><TestIcon size={14} className="inline mr-2" />Test / Service</th>
+                  <th className="px-6 py-4 font-bold"><CreditCard size={14} className="inline mr-2" />Payment</th>
                   <th className="px-6 py-4 font-bold"><Calendar size={14} className="inline mr-2" />Pref. Date</th>
                   <th className="px-6 py-4 font-bold"><Info size={14} className="inline mr-2" />Status</th>
                 </tr>
@@ -240,17 +251,45 @@ export default function AdminPage() {
                       <td className="px-6 py-4 font-bold text-slate-800">{appt.patientName}</td>
                       <td className="px-6 py-4 text-slate-600 font-mono text-sm">{appt.phone}</td>
                       <td className="px-6 py-4 text-slate-700">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap">
                           {appt.test}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-600 font-medium">{appt.date}</td>
+                      <td className="px-6 py-4 text-slate-600 font-medium">
+                        {appt.paymentMode ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${appt.paymentMode === 'Online' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                            {appt.paymentMode}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 font-medium whitespace-nowrap">{appt.date}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                          appt.status === 'Pending' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
-                        }`}>
-                          {appt.status}
-                        </span>
+                        <div className="relative inline-block">
+                          <select 
+                            value={appt.status}
+                            onChange={(e) => handleStatusChange(appt.id, e.target.value)}
+                            className={`appearance-none outline-none cursor-pointer inline-flex items-center pl-3 pr-8 py-1 rounded-full text-xs font-bold transition-colors ${
+                              appt.status === 'Pending' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 focus:ring-2 focus:ring-amber-400' : 
+                              appt.status === 'Completed' ? 'bg-green-100 text-green-800 hover:bg-green-200 focus:ring-2 focus:ring-green-400' : 
+                              'bg-red-100 text-red-800 hover:bg-red-200 focus:ring-2 focus:ring-red-400'
+                            }`}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                            <svg className={`h-3 w-3 ${
+                              appt.status === 'Pending' ? 'text-amber-800' : 
+                              appt.status === 'Completed' ? 'text-green-800' : 
+                              'text-red-800'
+                            }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ))

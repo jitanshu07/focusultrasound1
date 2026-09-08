@@ -10,7 +10,8 @@ export default function PublicPage() {
     name: '',
     phone: '',
     date: '',
-    service: ''
+    service: '',
+    paymentMode: ''
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -27,6 +28,7 @@ export default function PublicPage() {
         phone: formData.phone,
         date: formData.date,
         test: formData.service,
+        paymentMode: formData.paymentMode,
         status: 'Pending',
         createdAt: new Date().toISOString()
       };
@@ -35,7 +37,7 @@ export default function PublicPage() {
       localStorage.setItem('focus_appointments', JSON.stringify([newAppt, ...existing]));
 
       setFormStatus('submitted');
-      setFormData({ name: '', phone: '', date: '', service: '' });
+      setFormData({ name: '', phone: '', date: '', service: '', paymentMode: '' });
       setTimeout(() => setFormStatus('idle'), 5000);
     } catch (error) {
       console.error('Error submitting appointment: ', error);
@@ -321,17 +323,28 @@ export default function PublicPage() {
                       </div>
                     </div>
                     
-                    <div className="space-y-1.5">
-                      <label htmlFor="service" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Select Test</label>
-                      <select required id="service" value={formData.service} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl bg-white/50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm transition-shadow text-slate-600">
-                        <option value="">Choose a service...</option>
-                        <option value="ultrasound">Pelvic / Abdominal Ultrasound</option>
-                        <option value="xray">Digital X-Ray</option>
-                        <option value="mri">MRI / CT Scan</option>
-                        <option value="blood">Laboratory Blood Test</option>
-                        <option value="cardio">Cardiac Doppler / ECG</option>
-                        <option value="other">Other / Not Sure</option>
-                      </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-1.5">
+                        <label htmlFor="service" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Select Test</label>
+                        <select required id="service" value={formData.service} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl bg-white/50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm transition-shadow text-slate-600">
+                          <option value="">Choose a service...</option>
+                          <option value="ultrasound">Pelvic / Abdominal Ultrasound</option>
+                          <option value="xray">Digital X-Ray</option>
+                          <option value="mri">MRI / CT Scan</option>
+                          <option value="blood">Laboratory Blood Test</option>
+                          <option value="cardio">Cardiac Doppler / ECG</option>
+                          <option value="other">Other / Not Sure</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-1.5">
+                        <label htmlFor="paymentMode" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Payment Mode</label>
+                        <select required id="paymentMode" value={formData.paymentMode} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl bg-white/50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm transition-shadow text-slate-600">
+                          <option value="">Choose payment method...</option>
+                          <option value="Cash">Cash at Center</option>
+                          <option value="Online">Online / Card</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="pt-2">
