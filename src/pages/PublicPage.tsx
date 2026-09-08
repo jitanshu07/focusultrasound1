@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Activity, Phone, MapPin, Clock, ChevronRight, Menu, X, CheckCircle2, Stethoscope, Microscope, Droplets, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 
 export default function PublicPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -23,14 +21,19 @@ export default function PublicPage() {
     e.preventDefault();
     setFormStatus('submitting');
     try {
-      await addDoc(collection(db, 'appointments'), {
+      const newAppt = {
+        id: Date.now().toString(),
         patientName: formData.name,
         phone: formData.phone,
         date: formData.date,
         test: formData.service,
         status: 'Pending',
-        createdAt: serverTimestamp()
-      });
+        createdAt: new Date().toISOString()
+      };
+      
+      const existing = JSON.parse(localStorage.getItem('focus_appointments') || '[]');
+      localStorage.setItem('focus_appointments', JSON.stringify([newAppt, ...existing]));
+
       setFormStatus('submitted');
       setFormData({ name: '', phone: '', date: '', service: '' });
       setTimeout(() => setFormStatus('idle'), 5000);

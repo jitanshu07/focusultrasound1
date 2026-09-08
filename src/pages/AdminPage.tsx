@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, where, getDocs, addDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -38,42 +36,43 @@ export default function AdminPage() {
       return;
     }
 
-    const q = query(collection(db, 'appointments'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const appts: Appointment[] = [];
-      snapshot.forEach((doc) => {
-        appts.push({ id: doc.id, ...doc.data() } as Appointment);
-      });
+    const loadAppointments = () => {
+      const appts = JSON.parse(localStorage.getItem('focus_appointments') || '[]');
       setAppointments(appts);
-    });
+    };
 
-    return unsubscribe;
+    loadAppointments();
+    
+    // Poll for updates to simulate real-time updates without Firebase
+    const interval = setInterval(loadAppointments, 2000);
+    return () => clearInterval(interval);
   }, [adminUser]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     try {
+      const admins = JSON.parse(localStorage.getItem('focus_admins') || '[]');
+      
       if (isRegistering) {
-        const q = query(collection(db, 'admins'), where('email', '==', email));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
+        if (admins.some((a: any) => a.email === email)) {
           setLoginError('Email already registered.');
           return;
         }
-        await addDoc(collection(db, 'admins'), { name: name || 'Admin', email, password });
-        const sessionData = { name: name || 'Admin', email };
+        const newAdmin = { name: name || 'Admin', email, password };
+        admins.push(newAdmin);
+        localStorage.setItem('focus_admins', JSON.stringify(admins));
+        
+        const sessionData = { name: newAdmin.name, email };
         localStorage.setItem('focus_admin_session', JSON.stringify(sessionData));
         setAdminUser(sessionData);
       } else {
-        const q = query(collection(db, 'admins'), where('email', '==', email), where('password', '==', password));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
+        const admin = admins.find((a: any) => a.email === email && a.password === password);
+        if (!admin) {
           setLoginError('Invalid username or password.');
           return;
         }
-        const adminDoc = querySnapshot.docs[0].data();
-        const sessionData = { name: adminDoc.name || 'Admin', email: adminDoc.email };
+        const sessionData = { name: admin.name, email: admin.email };
         localStorage.setItem('focus_admin_session', JSON.stringify(sessionData));
         setAdminUser(sessionData);
       }
