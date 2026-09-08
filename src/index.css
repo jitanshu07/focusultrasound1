@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+.glass {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.mesh-bg {
+  background-color: #f0f9ff;
+  background-image: radial-gradient(at 0% 0%, hsla(203, 92%, 91%, 1) 0, transparent 50%), 
+                    radial-gradient(at 100% 0%, hsla(221, 84%, 93%, 1) 0, transparent 50%), 
+                    radial-gradient(at 100% 100%, hsla(199, 89%, 95%, 1) 0, transparent 50%), 
+                    radial-gradient(at 0% 100%, hsla(217, 91%, 92%, 1) 0, transparent 50%);
+}

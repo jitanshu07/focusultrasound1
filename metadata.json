@@ -1,0 +1,6 @@
+{
+  "name": "Focus Imagine and Diagnosis Centre",
+  "description": "Professional ultrasound and diagnostic centre offering accurate and reliable healthcare services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
