@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -21,7 +21,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -49,14 +51,21 @@ export default function AdminPage() {
     return unsubscribe;
   }, [user]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      console.error('Login failed', error);
-      setLoginError('Invalid username or password.');
+      if (isRegistering) {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (name) {
+          await updateProfile(userCredential.user, { displayName: name });
+        }
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error: any) {
+      console.error('Auth failed', error);
+      setLoginError(error.message || 'Authentication failed. Please check your details.');
     }
   };
 
@@ -85,11 +94,24 @@ export default function AdminPage() {
             <span className="font-bold text-2xl">F</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Admin Portal</h1>
-          <p className="text-slate-600 mb-8">Sign in to manage appointments.</p>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <p className="text-slate-600 mb-8">{isRegistering ? 'Create a new admin account.' : 'Sign in to manage appointments.'}</p>
+          <form onSubmit={handleAuth} className="space-y-4">
             {loginError && (
               <div className="p-3 bg-red-100/50 border border-red-200 text-red-700 text-sm rounded-xl mb-4 font-medium">
                 {loginError}
+              </div>
+            )}
+            {isRegistering && (
+              <div className="space-y-1.5 text-left">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Admin Name</label>
+                <input 
+                  type="text" 
+                  required={isRegistering}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white/50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm transition-shadow" 
+                  placeholder="Jane Doe" 
+                />
               </div>
             )}
             <div className="space-y-1.5 text-left">
@@ -119,10 +141,17 @@ export default function AdminPage() {
               className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-3 shadow-lg shadow-blue-200 transition-all"
             >
               <LogIn size={20} />
-              Secure Login
+              {isRegistering ? 'Create Account' : 'Secure Login'}
             </button>
           </form>
-          <div className="mt-8">
+          <div className="mt-6 flex flex-col gap-4">
+            <button 
+              type="button" 
+              onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }}
+              className="text-sm text-slate-600 font-medium hover:text-blue-600 transition-colors"
+            >
+              {isRegistering ? 'Already have an account? Sign in' : 'Need an account? Register'}
+            </button>
             <Link to="/" className="text-sm text-blue-600 font-medium hover:underline">
               &larr; Back to Public Site
             </Link>
@@ -153,6 +182,7 @@ export default function AdminPage() {
             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 overflow-hidden">
               {user.photoURL ? <img src={user.photoURL} alt="Avatar" /> : <UserIcon size={16} />}
             </div>
+            {user.displayName && <span className="text-sm font-bold text-slate-700 hidden sm:inline-block">{user.displayName}</span>}
             <button
               onClick={handleLogout}
               className="text-sm font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
