@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { db, auth } from '../lib/firebase';
+import { collection, query, orderBy, onSnapshot, where, getDocs, addDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -16,7 +15,7 @@ interface Appointment {
 }
 
 export default function AdminPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const [adminUser, setAdminUser] = useState<{name: string, email: string} | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -26,15 +25,15 @@ export default function AdminPage() {
   const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    return unsubscribe;
+    const storedSession = localStorage.getItem('focus_admin_session');
+    if (storedSession) {
+      setAdminUser(JSON.parse(storedSession));
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!adminUser) {
       setAppointments([]);
       return;
     }
@@ -49,32 +48,44 @@ export default function AdminPage() {
     });
 
     return unsubscribe;
-  }, [user]);
+  }, [adminUser]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     try {
       if (isRegistering) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        if (name) {
-          await updateProfile(userCredential.user, { displayName: name });
+        const q = query(collection(db, 'admins'), where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          setLoginError('Email already registered.');
+          return;
         }
+        await addDoc(collection(db, 'admins'), { name: name || 'Admin', email, password });
+        const sessionData = { name: name || 'Admin', email };
+        localStorage.setItem('focus_admin_session', JSON.stringify(sessionData));
+        setAdminUser(sessionData);
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const q = query(collection(db, 'admins'), where('email', '==', email), where('password', '==', password));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+          setLoginError('Invalid username or password.');
+          return;
+        }
+        const adminDoc = querySnapshot.docs[0].data();
+        const sessionData = { name: adminDoc.name || 'Admin', email: adminDoc.email };
+        localStorage.setItem('focus_admin_session', JSON.stringify(sessionData));
+        setAdminUser(sessionData);
       }
     } catch (error: any) {
       console.error('Auth failed', error);
-      setLoginError(error.message || 'Authentication failed. Please check your details.');
+      setLoginError('Authentication failed. Please try again.');
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Logout failed', error);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('focus_admin_session');
+    setAdminUser(null);
   };
 
   if (loading) {
@@ -85,7 +96,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!user) {
+  if (!adminUser) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
         <div className="fixed inset-0 mesh-bg -z-10"></div>
@@ -179,10 +190,10 @@ export default function AdminPage() {
           </Link>
           <div className="h-6 w-px bg-slate-300"></div>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 overflow-hidden">
-              {user.photoURL ? <img src={user.photoURL} alt="Avatar" /> : <UserIcon size={16} />}
+            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 overflow-hidden font-bold">
+              {adminUser.name.charAt(0).toUpperCase()}
             </div>
-            {user.displayName && <span className="text-sm font-bold text-slate-700 hidden sm:inline-block">{user.displayName}</span>}
+            <span className="text-sm font-bold text-slate-700 hidden sm:inline-block">{adminUser.name}</span>
             <button
               onClick={handleLogout}
               className="text-sm font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
