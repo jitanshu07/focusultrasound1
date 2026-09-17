@@ -1,17 +1,37 @@
 import React, { useEffect, useState } from 'react';
-import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info, CreditCard, Bell, AlertCircle, CheckCircle2, Search, X, Printer, FileText, Edit3, Trash2, Smartphone, Send, Check, AlertTriangle, Tag } from 'lucide-react';
+import { LogOut, Activity, User as UserIcon, LogIn, Calendar, Phone, Activity as TestIcon, Info, CreditCard, Bell, AlertCircle, CheckCircle2, Search, X, Printer, FileText, Edit3, Trash2, Smartphone, Send, Check, AlertTriangle, Tag, UserPlus, Shield, Lock, Eye, EyeOff, Users, KeyRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AppointmentsAnalytics from '../components/AppointmentsAnalytics';
 import ThemeToggle from '../components/ThemeToggle';
-import { Appointment, getServicePrice } from '../types';
+import { Appointment, getServicePrice, AdminAccount, MAX_ADMIN_LIMIT } from '../types';
 
 export default function AdminPage() {
-  const [adminUser, setAdminUser] = useState<{name: string, email: string} | null>(null);
+  const [adminUser, setAdminUser] = useState<{name: string, email: string; username?: string; role?: string} | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Authentication & Registration state
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [registeredAdmins, setRegisteredAdmins] = useState<AdminAccount[]>([]);
+  const [showAdminManagementModal, setShowAdminManagementModal] = useState(false);
+
+  // Login credentials inputs
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
+
+  // Register credentials inputs
+  const [regFullName, setRegFullName] = useState('');
+  const [regUsername, setRegUsername] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [regError, setRegError] = useState('');
+  const [regSuccess, setRegSuccess] = useState('');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [printingAppointment, setPrintingAppointment] = useState<Appointment | null>(null);
   const [editingNoteAppt, setEditingNoteAppt] = useState<Appointment | null>(null);
@@ -51,7 +71,7 @@ export default function AdminPage() {
     timestamp: string;
   } | null>(null);
 
-  // Fixed pre-defined administrator credentials
+  // Fallback credentials if no admins are registered yet
   const FIXED_ADMIN = {
     username: 'admin',
     email: 'admin@focusimagine.com',
@@ -59,12 +79,42 @@ export default function AdminPage() {
     displayName: 'Administrator'
   };
 
+  const loadRegisteredAdmins = () => {
+    try {
+      const stored = localStorage.getItem('focus_registered_admins');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setRegisteredAdmins(parsed);
+          return parsed;
+        }
+      }
+      setRegisteredAdmins([]);
+      return [];
+    } catch {
+      setRegisteredAdmins([]);
+      return [];
+    }
+  };
+
   useEffect(() => {
+    loadRegisteredAdmins();
     const storedSession = localStorage.getItem('focus_admin_session');
     if (storedSession) {
       setAdminUser(JSON.parse(storedSession));
     }
     setLoading(false);
+
+    const handleAdminsChange = () => {
+      loadRegisteredAdmins();
+    };
+
+    window.addEventListener('storage', handleAdminsChange);
+    window.addEventListener('focus_admins_updated', handleAdminsChange);
+    return () => {
+      window.removeEventListener('storage', handleAdminsChange);
+      window.removeEventListener('focus_admins_updated', handleAdminsChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -141,17 +191,154 @@ export default function AdminPage() {
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    setLoginSuccessMsg('');
     
     const inputUser = username.trim().toLowerCase();
+    const currentAdmins: AdminAccount[] = JSON.parse(localStorage.getItem('focus_registered_admins') || '[]');
+    
+    // Check against registered accounts in LocalStorage
+    const matched = currentAdmins.find(
+      (a) => (a.username.toLowerCase() === inputUser || a.email.toLowerCase() === inputUser) && a.password === password
+    );
+
+    if (matched) {
+      const sessionData = { 
+        name: matched.displayName || matched.username, 
+        email: matched.email,
+        username: matched.username,
+        role: matched.role || 'Administrator'
+      };
+      localStorage.setItem('focus_admin_session', JSON.stringify(sessionData));
+      setAdminUser(sessionData);
+      return;
+    }
+
+    // Fallback for initial system admin if no registered admins exist yet
     if (
+      currentAdmins.length === 0 &&
       (inputUser === FIXED_ADMIN.username || inputUser === FIXED_ADMIN.email) &&
       password === FIXED_ADMIN.password
     ) {
-      const sessionData = { name: FIXED_ADMIN.displayName, email: FIXED_ADMIN.email };
+      const sessionData = { 
+        name: FIXED_ADMIN.displayName, 
+        email: FIXED_ADMIN.email,
+        username: FIXED_ADMIN.username,
+        role: 'Administrator'
+      };
       localStorage.setItem('focus_admin_session', JSON.stringify(sessionData));
       setAdminUser(sessionData);
-    } else {
-      setLoginError('Invalid username or password. Unauthorized access is restricted.');
+      return;
+    }
+
+    setLoginError('Invalid username or password. Please verify your credentials.');
+  };
+
+  const handleRegisterAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError('');
+    setRegSuccess('');
+
+    const currentAdmins: AdminAccount[] = JSON.parse(localStorage.getItem('focus_registered_admins') || '[]');
+    
+    // Strict enforcement of maximum 2 admin accounts limit
+    if (currentAdmins.length >= MAX_ADMIN_LIMIT) {
+      setRegError(`Maximum admin limit (${MAX_ADMIN_LIMIT}) reached. No further admin registrations are allowed.`);
+      return;
+    }
+
+    const cleanFullName = regFullName.trim();
+    const cleanUsername = regUsername.trim().toLowerCase();
+    const cleanEmail = regEmail.trim().toLowerCase();
+
+    if (!cleanFullName || cleanFullName.length < 2) {
+      setRegError('Please enter a valid full name (minimum 2 characters).');
+      return;
+    }
+
+    if (!cleanUsername || cleanUsername.length < 3) {
+      setRegError('Username must be at least 3 characters long.');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_.-]+$/.test(cleanUsername)) {
+      setRegError('Username can only contain letters, numbers, hyphens, and underscores.');
+      return;
+    }
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setRegError('Please enter a valid email address.');
+      return;
+    }
+
+    // Check username uniqueness
+    if (currentAdmins.some((a) => a.username.toLowerCase() === cleanUsername)) {
+      setRegError(`The username "${cleanUsername}" is already taken. Please choose another.`);
+      return;
+    }
+
+    // Check email uniqueness
+    if (currentAdmins.some((a) => a.email.toLowerCase() === cleanEmail)) {
+      setRegError(`The email "${cleanEmail}" is already registered. Please choose another.`);
+      return;
+    }
+
+    if (regPassword.length < 6) {
+      setRegError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (regPassword !== regConfirmPassword) {
+      setRegError('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    const newAdmin: AdminAccount = {
+      id: 'admin_' + Date.now(),
+      displayName: cleanFullName,
+      username: cleanUsername,
+      email: cleanEmail,
+      password: regPassword,
+      createdAt: new Date().toISOString(),
+      role: currentAdmins.length === 0 ? 'Lead Administrator' : 'Secondary Administrator'
+    };
+
+    const updatedAdmins = [...currentAdmins, newAdmin];
+    localStorage.setItem('focus_registered_admins', JSON.stringify(updatedAdmins));
+    setRegisteredAdmins(updatedAdmins);
+    window.dispatchEvent(new Event('focus_admins_updated'));
+
+    // Clear registration fields
+    setRegFullName('');
+    setRegUsername('');
+    setRegEmail('');
+    setRegPassword('');
+    setRegConfirmPassword('');
+
+    // Pre-fill login credentials for seamless, smooth login
+    setUsername(newAdmin.username);
+    setPassword(newAdmin.password);
+    setLoginError('');
+    setLoginSuccessMsg(`Admin account "${newAdmin.displayName}" registered successfully! You can now log in.`);
+    setAuthMode('login');
+  };
+
+  const handleDeleteRegisteredAdmin = (adminId: string) => {
+    const currentAdmins: AdminAccount[] = JSON.parse(localStorage.getItem('focus_registered_admins') || '[]');
+    const target = currentAdmins.find(a => a.id === adminId);
+    if (!target) return;
+
+    if (!confirm(`Are you sure you want to remove administrator "${target.displayName}" (@${target.username})? A registration slot will become available.`)) {
+      return;
+    }
+
+    const updated = currentAdmins.filter(a => a.id !== adminId);
+    localStorage.setItem('focus_registered_admins', JSON.stringify(updated));
+    setRegisteredAdmins(updated);
+    window.dispatchEvent(new Event('focus_admins_updated'));
+
+    // If current logged-in user removed their own account
+    if (adminUser && (adminUser.email === target.email || adminUser.username === target.username)) {
+      handleLogout();
     }
   };
 
@@ -267,69 +454,328 @@ export default function AdminPage() {
   }
 
   if (!adminUser) {
+    const isLimitReached = registeredAdmins.length >= MAX_ADMIN_LIMIT;
+
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 relative transition-colors duration-200">
         <div className="fixed inset-0 mesh-bg -z-10"></div>
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
           <ThemeToggle />
         </div>
-        <div className="glass p-8 sm:p-10 rounded-3xl w-full max-w-md text-center shadow-xl border border-white/60 dark:border-slate-800">
-          <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md shadow-blue-200 dark:shadow-none">
-            <span className="font-bold text-2xl">F</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Admin Portal</h1>
-          <p className="text-slate-600 dark:text-slate-300 mb-6">Sign in with authorized administrator credentials.</p>
-          
-          <div className="mb-6 p-3.5 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 rounded-2xl text-left text-xs text-slate-600 dark:text-slate-300 flex flex-col gap-1">
-            <div className="font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
-              <Info size={14} className="text-blue-600 dark:text-blue-400 shrink-0" /> Fixed Admin Credentials:
-            </div>
-            <div className="flex justify-between items-center pt-1 font-mono text-slate-700 dark:text-slate-300">
-              <span>Username: <strong className="text-slate-900 dark:text-white font-semibold">admin</strong></span>
-              <span>Password: <strong className="text-slate-900 dark:text-white font-semibold">admin123</strong></span>
-            </div>
+
+        <div className="glass p-6 sm:p-9 rounded-3xl w-full max-w-lg text-center shadow-xl border border-white/60 dark:border-slate-800 transition-all">
+          <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-md shadow-blue-200 dark:shadow-none">
+            <Shield size={32} />
           </div>
 
-          <form onSubmit={handleAuth} className="space-y-4">
-            {loginError && (
-              <div className="p-3 bg-red-100/60 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-xl mb-4 font-medium text-left">
-                {loginError}
-              </div>
-            )}
-            <div className="space-y-1.5 text-left">
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Username</label>
-              <input 
-                type="text" 
-                required 
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm transition-shadow text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" 
-                placeholder="admin or admin@focusimagine.com" 
-              />
-            </div>
-            <div className="space-y-1.5 text-left pb-2">
-              <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Password</label>
-              <input 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm transition-shadow text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500" 
-                placeholder="••••••••" 
-              />
-            </div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1.5">Admin Portal</h1>
+          <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm mb-5">
+            {authMode === 'login'
+              ? 'Sign in with your authorized administrator credentials.'
+              : 'Register an authorized administrator account (Strict limit: 2).'}
+          </p>
+
+          {/* Mode Switcher Tabs */}
+          <div className="flex rounded-2xl bg-slate-100 dark:bg-slate-900 p-1.5 mb-5 border border-slate-200 dark:border-slate-800">
             <button
-              type="submit"
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center justify-center gap-3 shadow-lg shadow-blue-200 dark:shadow-none transition-all cursor-pointer"
+              type="button"
+              onClick={() => {
+                setAuthMode('login');
+                setLoginError('');
+                setRegError('');
+              }}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                authMode === 'login'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
             >
-              <LogIn size={20} />
-              Secure Login
+              <LogIn size={15} />
+              <span>Sign In</span>
             </button>
-          </form>
-          
-          <div className="mt-6 flex flex-col items-center gap-4">
-            <Link to="/" className="text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline">
-              &larr; Back to Public Site
+
+            <button
+              type="button"
+              disabled={isLimitReached}
+              onClick={() => {
+                if (!isLimitReached) {
+                  setAuthMode('register');
+                  setLoginError('');
+                  setRegError('');
+                  setLoginSuccessMsg('');
+                }
+              }}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${
+                isLimitReached
+                  ? 'opacity-60 cursor-not-allowed text-slate-400 dark:text-slate-500 bg-transparent'
+                  : authMode === 'register'
+                  ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs cursor-pointer'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer'
+              }`}
+              title={isLimitReached ? `Maximum admin limit (${MAX_ADMIN_LIMIT}) reached` : 'Register new admin account'}
+            >
+              {isLimitReached ? <Lock size={14} className="text-amber-500 shrink-0" /> : <UserPlus size={15} className="shrink-0" />}
+              <span>Register Admin</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                  isLimitReached
+                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                    : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                }`}
+              >
+                {registeredAdmins.length}/{MAX_ADMIN_LIMIT}
+              </span>
+            </button>
+          </div>
+
+          {/* SIGN IN VIEW */}
+          {authMode === 'login' && (
+            <div>
+              {/* Registration Status Pill */}
+              {isLimitReached ? (
+                <div className="mb-4 p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-900/60 rounded-2xl text-left text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2.5">
+                  <Shield size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <div>
+                    <span className="font-bold">Maximum admin limit ({MAX_ADMIN_LIMIT}) reached.</span>
+                    <span className="block text-[11px] text-amber-700 dark:text-amber-400">All administrator slots are registered. Registration is closed.</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4 p-2.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-left text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Users size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>Admin Accounts: <strong className="text-slate-900 dark:text-white font-bold">{registeredAdmins.length} of {MAX_ADMIN_LIMIT}</strong> active</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register');
+                      setLoginError('');
+                      setLoginSuccessMsg('');
+                    }}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold text-xs hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Register</span> &rarr;
+                  </button>
+                </div>
+              )}
+
+              {/* Login Success Notification (e.g. redirected after registration) */}
+              {loginSuccessMsg && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs rounded-xl mb-4 font-medium text-left flex items-start gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <span>{loginSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Login Error Notification */}
+              {loginError && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-xl mb-4 font-medium text-left flex items-start gap-2">
+                  <AlertCircle size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleAuth} className="space-y-4">
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                    <UserIcon size={13} />
+                    <span>Username or Email</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-shadow text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                    placeholder="Enter registered username or email"
+                    autoComplete="username"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-left pb-1">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                    <Lock size={13} />
+                    <span>Password</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 py-3 pr-11 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-shadow text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold rounded-xl flex items-center justify-center gap-2.5 shadow-lg shadow-blue-200 dark:shadow-none transition-all cursor-pointer text-sm"
+                >
+                  <LogIn size={18} />
+                  <span>Secure Sign In</span>
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* REGISTER VIEW */}
+          {authMode === 'register' && (
+            <div>
+              {isLimitReached ? (
+                <div className="p-6 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-300 flex items-center justify-center mx-auto shadow-xs">
+                    <Lock size={22} />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Maximum admin limit (2) reached</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
+                    The medical diagnostic system strictly enforces a maximum of 2 administrator accounts. Both slots are currently registered. New registrations are closed.
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('login')}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 shadow-md shadow-blue-200 dark:shadow-none"
+                    >
+                      <LogIn size={15} /> Back to Sign In
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-4 p-2.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-left text-xs text-blue-900 dark:text-blue-300 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Shield size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>Registering Admin <strong>{registeredAdmins.length + 1}</strong> of <strong>{MAX_ADMIN_LIMIT}</strong></span>
+                    </div>
+                    <span className="text-[11px] font-mono bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full font-bold">
+                      {MAX_ADMIN_LIMIT - registeredAdmins.length} slot left
+                    </span>
+                  </div>
+
+                  {regError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-xl mb-4 font-medium text-left flex items-start gap-2">
+                      <AlertCircle size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                      <span>{regError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleRegisterAdmin} className="space-y-3.5 text-left">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                        Full Name / Title
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={regFullName}
+                        onChange={(e) => setRegFullName(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                        placeholder="e.g. Dr. Priya Sharma"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={regUsername}
+                          onChange={(e) => setRegUsername(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                          placeholder="e.g. psharma"
+                          autoComplete="username"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                          Official Email
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={regEmail}
+                          onChange={(e) => setRegEmail(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                          placeholder="priya@focusimaging.com"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showRegPassword ? 'text' : 'password'}
+                            required
+                            minLength={6}
+                            value={regPassword}
+                            onChange={(e) => setRegPassword(e.target.value)}
+                            className="w-full px-3.5 py-2.5 pr-9 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                            placeholder="Min. 6 chars"
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegPassword(!showRegPassword)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                          >
+                            {showRegPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                          Confirm Password
+                        </label>
+                        <input
+                          type={showRegPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          value={regConfirmPassword}
+                          onChange={(e) => setRegConfirmPassword(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                          placeholder="Re-enter password"
+                          autoComplete="new-password"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full mt-2 py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-200 dark:shadow-none transition-all cursor-pointer text-sm"
+                    >
+                      <UserPlus size={18} />
+                      <span>Register Admin Account</span>
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <Link to="/" className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+              &larr; Back to Public Diagnostic Website
             </Link>
           </div>
         </div>
@@ -382,6 +828,23 @@ export default function AdminPage() {
             <span>Public Site</span>
           </Link>
 
+          <button
+            type="button"
+            onClick={() => setShowAdminManagementModal(true)}
+            className="text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-white/60 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Manage Registered Administrator Accounts"
+          >
+            <Shield size={13} className="text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Admins</span>
+            <span className={`px-1.5 py-0.2 rounded-md font-mono text-[10px] font-bold ${
+              registeredAdmins.length >= MAX_ADMIN_LIMIT
+                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                : 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-300'
+            }`}>
+              {registeredAdmins.length}/{MAX_ADMIN_LIMIT}
+            </span>
+          </button>
+
           {/* Theme Mode Toggle Button */}
           <ThemeToggle />
 
@@ -390,7 +853,10 @@ export default function AdminPage() {
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs">
               {adminUser.name.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 hidden md:inline-block">{adminUser.name}</span>
+            <div className="hidden md:flex flex-col text-left">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">{adminUser.name}</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono leading-tight">{adminUser.role || 'Administrator'}</span>
+            </div>
             <button
               onClick={handleLogout}
               className="text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 px-2 sm:px-2.5 py-1.5 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
@@ -1436,6 +1902,126 @@ export default function AdminPage() {
                 className="px-5 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
               >
                 Close Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Administrator Accounts Management Modal */}
+      {showAdminManagementModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="glass max-w-lg w-full p-6 sm:p-7 rounded-3xl border border-white/80 dark:border-slate-700 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                  <Shield size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Admin Accounts</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      registeredAdmins.length >= MAX_ADMIN_LIMIT
+                        ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                        : 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-300'
+                    }`}>
+                      {registeredAdmins.length} / {MAX_ADMIN_LIMIT} Registered
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Strict governance: Maximum 2 admin accounts allowed.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdminManagementModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Capacity Status Banner */}
+            {registeredAdmins.length >= MAX_ADMIN_LIMIT ? (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/70 rounded-2xl text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2.5">
+                <Lock size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Maximum admin limit ({MAX_ADMIN_LIMIT}) reached.</span>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                    Registration is disabled on the sign-in portal. To register a new administrator, remove an existing account below.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/70 rounded-2xl text-xs text-emerald-900 dark:text-emerald-300 flex items-start gap-2.5">
+                <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">{MAX_ADMIN_LIMIT - registeredAdmins.length} registration slot available.</span>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5">
+                    A new administrator can register via the Admin Portal sign-in screen.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Accounts List */}
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {registeredAdmins.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-center space-y-1">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No custom admins registered yet</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Currently operating on emergency default credentials. Log out and register up to 2 custom admin accounts.
+                  </p>
+                </div>
+              ) : (
+                registeredAdmins.map((admin, idx) => (
+                  <div
+                    key={admin.id || idx}
+                    className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs shrink-0">
+                        {admin.displayName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {admin.displayName}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                            @{admin.username}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {admin.email}
+                        </div>
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                          {admin.role || 'Administrator'} • Registered {new Date(admin.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRegisteredAdmin(admin.id)}
+                      className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl transition-colors cursor-pointer shrink-0"
+                      title={`Remove ${admin.displayName} to free an admin registration slot`}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowAdminManagementModal(false)}
+                className="px-5 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

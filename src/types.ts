@@ -77,3 +77,15 @@ export function getServiceInfo(serviceName?: string): ServicePriceInfo | null {
   }
   return null;
 }
+
+export interface AdminAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  email: string;
+  password: string;
+  createdAt: string;
+  role?: string;
+}
+
+export const MAX_ADMIN_LIMIT = 2;
