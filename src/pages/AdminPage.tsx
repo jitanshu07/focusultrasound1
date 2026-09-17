@@ -242,7 +242,7 @@ export default function AdminPage() {
     
     // Strict enforcement of maximum 2 admin accounts limit
     if (currentAdmins.length >= MAX_ADMIN_LIMIT) {
-      setRegError(`Maximum admin limit (${MAX_ADMIN_LIMIT}) reached. No further admin registrations are allowed.`);
+      setRegError('Maximum admin limit reached. No further admin registrations are allowed.');
       return;
     }
 
@@ -472,7 +472,7 @@ export default function AdminPage() {
           <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm mb-5">
             {authMode === 'login'
               ? 'Sign in with your authorized administrator credentials.'
-              : 'Register an authorized administrator account (Strict limit: 2).'}
+              : 'Register an authorized administrator account.'}
           </p>
 
           {/* Mode Switcher Tabs */}
@@ -512,54 +512,16 @@ export default function AdminPage() {
                   ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs cursor-pointer'
                   : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer'
               }`}
-              title={isLimitReached ? `Maximum admin limit (${MAX_ADMIN_LIMIT}) reached` : 'Register new admin account'}
+              title={isLimitReached ? 'Maximum admin limit reached' : 'Register new admin account'}
             >
               {isLimitReached ? <Lock size={14} className="text-amber-500 shrink-0" /> : <UserPlus size={15} className="shrink-0" />}
               <span>Register Admin</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                  isLimitReached
-                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
-                    : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                }`}
-              >
-                {registeredAdmins.length}/{MAX_ADMIN_LIMIT}
-              </span>
             </button>
           </div>
 
           {/* SIGN IN VIEW */}
           {authMode === 'login' && (
             <div>
-              {/* Registration Status Pill */}
-              {isLimitReached ? (
-                <div className="mb-4 p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-900/60 rounded-2xl text-left text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2.5">
-                  <Shield size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                  <div>
-                    <span className="font-bold">Maximum admin limit ({MAX_ADMIN_LIMIT}) reached.</span>
-                    <span className="block text-[11px] text-amber-700 dark:text-amber-400">All administrator slots are registered. Registration is closed.</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="mb-4 p-2.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-left text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Users size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
-                    <span>Admin Accounts: <strong className="text-slate-900 dark:text-white font-bold">{registeredAdmins.length} of {MAX_ADMIN_LIMIT}</strong> active</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode('register');
-                      setLoginError('');
-                      setLoginSuccessMsg('');
-                    }}
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold text-xs hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <span>Register</span> &rarr;
-                  </button>
-                </div>
-              )}
-
               {/* Login Success Notification (e.g. redirected after registration) */}
               {loginSuccessMsg && (
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs rounded-xl mb-4 font-medium text-left flex items-start gap-2">
@@ -638,9 +600,9 @@ export default function AdminPage() {
                   <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-300 flex items-center justify-center mx-auto shadow-xs">
                     <Lock size={22} />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Maximum admin limit (2) reached</h3>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Maximum admin limit reached</h3>
                   <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
-                    The medical diagnostic system strictly enforces a maximum of 2 administrator accounts. Both slots are currently registered. New registrations are closed.
+                    The medical diagnostic system enforces a strict administrator limit. All administrator accounts are currently registered. New registrations are closed.
                   </p>
                   <div className="pt-2">
                     <button
@@ -654,16 +616,6 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <div>
-                  <div className="mb-4 p-2.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-left text-xs text-blue-900 dark:text-blue-300 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Shield size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
-                      <span>Registering Admin <strong>{registeredAdmins.length + 1}</strong> of <strong>{MAX_ADMIN_LIMIT}</strong></span>
-                    </div>
-                    <span className="text-[11px] font-mono bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full font-bold">
-                      {MAX_ADMIN_LIMIT - registeredAdmins.length} slot left
-                    </span>
-                  </div>
-
                   {regError && (
                     <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-xl mb-4 font-medium text-left flex items-start gap-2">
                       <AlertCircle size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
@@ -836,13 +788,6 @@ export default function AdminPage() {
           >
             <Shield size={13} className="text-blue-600 dark:text-blue-400" />
             <span className="hidden sm:inline">Admins</span>
-            <span className={`px-1.5 py-0.2 rounded-md font-mono text-[10px] font-bold ${
-              registeredAdmins.length >= MAX_ADMIN_LIMIT
-                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
-                : 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-300'
-            }`}>
-              {registeredAdmins.length}/{MAX_ADMIN_LIMIT}
-            </span>
           </button>
 
           {/* Theme Mode Toggle Button */}
@@ -1918,18 +1863,11 @@ export default function AdminPage() {
                   <Shield size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>Admin Accounts</span>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                      registeredAdmins.length >= MAX_ADMIN_LIMIT
-                        ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
-                        : 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-300'
-                    }`}>
-                      {registeredAdmins.length} / {MAX_ADMIN_LIMIT} Registered
-                    </span>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Admin Accounts
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Strict governance: Maximum 2 admin accounts allowed.
+                    Administrator access control and account management.
                   </p>
                 </div>
               </div>
@@ -1942,24 +1880,14 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Capacity Status Banner */}
-            {registeredAdmins.length >= MAX_ADMIN_LIMIT ? (
+            {/* Capacity Status Banner when locked */}
+            {registeredAdmins.length >= MAX_ADMIN_LIMIT && (
               <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/70 rounded-2xl text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2.5">
                 <Lock size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold">Maximum admin limit ({MAX_ADMIN_LIMIT}) reached.</span>
+                  <span className="font-bold">Maximum admin limit reached.</span>
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
-                    Registration is disabled on the sign-in portal. To register a new administrator, remove an existing account below.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/70 rounded-2xl text-xs text-emerald-900 dark:text-emerald-300 flex items-start gap-2.5">
-                <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">{MAX_ADMIN_LIMIT - registeredAdmins.length} registration slot available.</span>
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5">
-                    A new administrator can register via the Admin Portal sign-in screen.
+                    Registration is disabled. To register a new administrator, remove an existing account below.
                   </p>
                 </div>
               </div>
@@ -1971,7 +1899,7 @@ export default function AdminPage() {
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-center space-y-1">
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No custom admins registered yet</p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Currently operating on emergency default credentials. Log out and register up to 2 custom admin accounts.
+                    Currently operating on default credentials. Log out to register an authorized administrator account.
                   </p>
                 </div>
               ) : (
@@ -2006,7 +1934,7 @@ export default function AdminPage() {
                       type="button"
                       onClick={() => handleDeleteRegisteredAdmin(admin.id)}
                       className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl transition-colors cursor-pointer shrink-0"
-                      title={`Remove ${admin.displayName} to free an admin registration slot`}
+                      title={`Remove ${admin.displayName}`}
                     >
                       <Trash2 size={15} />
                     </button>
